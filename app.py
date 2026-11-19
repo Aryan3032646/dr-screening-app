@@ -5,7 +5,16 @@ from tensorflow.keras.applications.resnet50 import preprocess_input
 
 # 1. Load the trained model from Google Drive
 MODEL_PATH = "idrid_final_model.keras"
-model = tf.keras.models.load_model(MODEL_PATH)
+class CompatibleDense(tf.keras.layers.Dense):
+    def __init__(self, *args, **kwargs):
+        kwargs.pop("quantization_config", None)
+        super().__init__(*args, **kwargs)
+
+model = tf.keras.models.load_model(
+    MODEL_PATH,
+    custom_objects={"Dense": CompatibleDense},
+    compile=False
+)
 
 CLASS_NAMES = [
     "Grade 0 — No Apparent Retinopathy",
