@@ -1,20 +1,20 @@
+import os
 import gradio as gr
 import tensorflow as tf
+import keras
 import numpy as np
 from tensorflow.keras.applications.resnet50 import preprocess_input
 
-# 1. Load the trained model from Google Drive
-MODEL_PATH = "idrid_final_model.keras"
-class CompatibleDense(tf.keras.layers.Dense):
-    def __init__(self, *args, **kwargs):
-        kwargs.pop("quantization_config", None)
-        super().__init__(*args, **kwargs)
+# 1. Patch Dense layer for cross-version Keras compatibility & load model
+_orig_dense_init = keras.layers.Dense.__init__
+def _patched_dense_init(self, *args, **kwargs):
+    kwargs.pop("quantization_config", None)
+    _orig_dense_init(self, *args, **kwargs)
 
-model = tf.keras.models.load_model(
-    MODEL_PATH,
-    custom_objects={"Dense": CompatibleDense},
-    compile=False
-)
+keras.layers.Dense.__init__ = _patched_dense_init
+
+MODEL_PATH = "idrid_final_model.keras"
+model = tf.keras.models.load_model(MODEL_PATH, compile=False)
 
 CLASS_NAMES = [
     "Grade 0 — No Apparent Retinopathy",
@@ -52,9 +52,9 @@ def predict_dr(image):
 
     summary_md = f"""
     ### Diagnostic Summary
-    * **Predicted Severity:** {CLASS_NAMES[top_idx]}
-    * **Model Confidence:** {confidence:.2f}%
-    * **Clinical Context:** {CLINICAL_NOTES[top_idx]}
+- **Predicted Severity:** {CLASS_NAMES[top_idx]}
+- **Model Confidence:** {confidence:.2f}%
+- **Clinical Context:** {CLINICAL_NOTES[top_idx]}
     """
     return probabilities, summary_md
 
@@ -106,8 +106,8 @@ with gr.Blocks(theme=theme, title="Diabetic Retinopathy Screening Assistant") as
             """
             **Diabetic Retinopathy (DR)** is a diabetes-related eye condition caused by damage to the blood vessels of the light-sensitive tissue at the back of the eye (the retina). It progresses through two main stages:
 
-            * **Non-Proliferative DR (NPDR — Grades 1 to 3):** The early-to-moderate stage where existing retinal blood vessels weaken, bulge, or leak fluid/blood into the retina, without new abnormal vessels growing yet.
-            * **Proliferative DR (PDR — Grade 4):** The advanced stage where severe oxygen deprivation triggers the growth of fragile, abnormal new blood vessels (*neovascularization*) that can bleed into the eye and threaten vision.
+- **Non-Proliferative DR (NPDR — Grades 1 to 3):** The early-to-moderate stage where existing retinal blood vessels weaken, bulge, or leak fluid/blood into the retina, without new abnormal vessels growing yet.
+- **Proliferative DR (PDR — Grade 4):** The advanced stage where severe oxygen deprivation triggers the growth of fragile, abnormal new blood vessels (*neovascularization*) that can bleed into the eye and threaten vision.
 
             | Grade | Classification | Clinical Meaning |
             | :--- | :--- | :--- |
@@ -123,10 +123,10 @@ with gr.Blocks(theme=theme, title="Diabetic Retinopathy Screening Assistant") as
     with gr.Accordion("Model Specifications & Medical Disclaimer", open=False):
         gr.Markdown(
             """
-            * **Architecture:** ResNet50 (Transfer Learning with custom classification head)
-            * **Dataset:** Indian Diabetic Retinopathy Image Dataset (IDRiD)
-            * **Input Resolution:** 224 × 224 px (RGB)
-            * **Disclaimer:** *This application is a research and educational prototype. It is not a certified medical device and should not be used as a substitute for professional clinical diagnosis or ophthalmological evaluation.*
+- **Architecture:** ResNet50 (Transfer Learning with custom classification head)
+- **Dataset:** Indian Diabetic Retinopathy Image Dataset (IDRiD)
+- **Input Resolution:** 224 × 224 px (RGB)
+- **Disclaimer:** *This application is a research and educational prototype. It is not a certified medical device and should not be used as a substitute for professional clinical diagnosis or ophthalmological evaluation.*
             """
         )
 
@@ -148,5 +148,6 @@ with gr.Blocks(theme=theme, title="Diabetic Retinopathy Screening Assistant") as
     )
     clear_btn.add([image_input, label_output, summary_output])
 
-# Launch with a public shareable link
-demo.launch(share=True)
+# Launch on 0.0.0.0 and Cloud Run's PORT (7860)
+port = int(os.environ.get("PORT", 7860))
+demo.launch(server_name="0.0.0.0", server_port=port)
