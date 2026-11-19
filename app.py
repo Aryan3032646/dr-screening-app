@@ -4,7 +4,7 @@ import numpy as np
 from tensorflow.keras.applications.resnet50 import preprocess_input
 
 # 1. Load the trained model from Google Drive
-MODEL_PATH = '/content/drive/MyDrive/idrid_final_model.keras'
+MODEL_PATH = "idrid_final_model.keras"
 model = tf.keras.models.load_model(MODEL_PATH)
 
 CLASS_NAMES = [
